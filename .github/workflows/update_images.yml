@@ -43,25 +43,23 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '18'
+          node-version: '20'
 
       # Step 3: Install dependencies
       - name: Install dependencies
         run: npm install
 
       # Step 4: Take screenshot of ideabrowser.com
+      # A ideia do dia é pública em /idea-of-the-day durante seu próprio dia,
+      # então a captura dispensa login (o fluxo de login do site mudou em jun/2026
+      # e quebrou os seletores antigos — sem credenciais, screenshot.js pula o login).
       - name: Capture daily idea screenshot
         run: node screenshot.js
         env:
           PUPPETEER_EXECUTABLE_PATH: /usr/bin/google-chrome
-          IDEABROWSER_EMAIL: ${{ secrets.IDEABROWSER_EMAIL }}
-          IDEABROWSER_PASSWORD: ${{ secrets.IDEABROWSER_PASSWORD }}
-          IDEABROWSER_LOGIN_TRIGGER_SELECTOR: "div.hidden:nth-child(2) > div:nth-child(1) > button:nth-child(4)"
-          IDEABROWSER_EMAIL_SELECTOR: "div.hidden:nth-child(2) > div:nth-child(1) > form:nth-child(3) > div:nth-child(1) > div:nth-child(1) > input:nth-child(2)"
-          IDEABROWSER_PASSWORD_SELECTOR: "div.flex-row:nth-child(2) > div:nth-child(1) > input:nth-child(2)"
-          IDEABROWSER_SUBMIT_SELECTOR: "div.hidden:nth-child(2) > div:nth-child(1) > form:nth-child(3) button[type='submit']"
+          IDEABROWSER_TARGET_URL: "https://www.ideabrowser.com/idea-of-the-day"
         # The screenshot.js script automatically:
-        # - Scrapes https://www.ideabrowser.com/
+        # - Scrapes https://www.ideabrowser.com/idea-of-the-day
         # - Creates archives/year/month/ folder structure
         # - Saves screenshot as "14 July 2025.png" format
 
