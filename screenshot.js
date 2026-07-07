@@ -16,6 +16,7 @@ const LOGIN_TRIGGER_SELECTOR = process.env.IDEABROWSER_LOGIN_TRIGGER_SELECTOR;
 const POST_LOGIN_SELECTOR = process.env.IDEABROWSER_POST_LOGIN_SELECTOR;
 const IDEA_SELECTOR = process.env.IDEABROWSER_IDEA_SELECTOR;
 const USER_DATA_DIR = process.env.IDEABROWSER_USER_DATA_DIR || path.join(os.tmpdir(), 'ideabrowser-profile');
+const CHALLENGE_TIMEOUT_MS = Number(process.env.IDEABROWSER_CHALLENGE_TIMEOUT_MS) || 60000;
 
 const DEFAULT_EMAIL_SELECTORS = [
   'input[type="email"]',
@@ -69,6 +70,37 @@ async function clickElement(page, selector, label) {
       }
     }, selector);
   }
+}
+
+// Detects the Vercel "verifying your browser" interstitial and waits for it to
+// clear. Returns true once the real page is showing, false if it never cleared.
+async function waitForChallengeToClear(page, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  let sawChallenge = false;
+
+  const isChallenge = () =>
+    page.evaluate(() => {
+      const t = document.body ? document.body.innerText : '';
+      return /verifying your browser|security checkpoint|checking your browser/i.test(t);
+    }).catch(() => false);
+
+  while (Date.now() < deadline) {
+    if (!(await isChallenge())) {
+      if (sawChallenge) console.log('Challenge cleared — real page is loading.');
+      return true;
+    }
+    if (!sawChallenge) {
+      console.log('Vercel challenge detected — waiting for it to clear...');
+      sawChallenge = true;
+    }
+    await new Promise((r) => setTimeout(r, 2500));
+  }
+
+  console.warn(
+    `⚠️  Challenge still present after ${Math.round(timeoutMs / 1000)}s — ` +
+      'the screenshot may show the checkpoint instead of the idea.'
+  );
+  return false;
 }
 
 async function loginIfNeeded(page) {
@@ -210,6 +242,12 @@ async function loginIfNeeded(page) {
       waitUntil: 'networkidle2',
       timeout: 30000
     });
+
+    // Vercel serves a "verifying your browser" interstitial (managed challenge)
+    // to some clients — notably datacenter IPs like CI runners. It clears on its
+    // own once the challenge JS runs, so poll until the real page appears instead
+    // of screenshotting the checkpoint. On a residential IP this passes instantly.
+    await waitForChallengeToClear(page, CHALLENGE_TIMEOUT_MS);
 
     if (IDEA_SELECTOR) {
       console.log('Waiting for idea section...');
